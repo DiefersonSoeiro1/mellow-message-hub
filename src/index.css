@@ -1,3 +1,4 @@
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -49,6 +50,12 @@
     --sidebar-border: 220 13% 91%;
 
     --sidebar-ring: 217.2 91.2% 59.8%;
+    
+    /* Chat specific colors */
+    --chat-bg: 210 20% 98%;
+    --sender-bubble: 210 100% 97%;
+    --receiver-bubble: 210 90% 65%;
+    --receiver-text: 210 25% 98%;
   }
 
   .dark {
@@ -87,6 +94,12 @@
     --sidebar-accent-foreground: 240 4.8% 95.9%;
     --sidebar-border: 240 3.7% 15.9%;
     --sidebar-ring: 217.2 91.2% 59.8%;
+    
+    /* Chat specific colors - dark mode */
+    --chat-bg: 215 25% 12%;
+    --sender-bubble: 215 20% 20%;
+    --receiver-bubble: 215 70% 40%;
+    --receiver-text: 210 25% 98%;
   }
 }
 
@@ -98,4 +111,20 @@
   body {
     @apply bg-background text-foreground;
   }
+}
+
+/* Chat specific animations */
+@keyframes message-appear {
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.message-animation {
+  animation: message-appear 0.3s ease-out forwards;
 }
