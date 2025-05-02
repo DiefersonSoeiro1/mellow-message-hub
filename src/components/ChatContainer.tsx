@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import ChatMessage from './ChatMessage';
 import ChatInput from './ChatInput';
+import { toast } from 'sonner';
 
 type Message = {
   id: number;
@@ -9,6 +10,8 @@ type Message = {
   isSender: boolean;
   timestamp: string;
 };
+
+const N8N_WEBHOOK_URL = 'https://n8n.crisdulabs.com.br/webhook/conversar-com-bot';
 
 const ChatContainer = () => {
   const [messages, setMessages] = useState<Message[]>([
@@ -26,6 +29,7 @@ const ChatContainer = () => {
     }
   ]);
   
+  const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
@@ -36,15 +40,19 @@ const ChatContainer = () => {
     scrollToBottom();
   }, [messages]);
 
-  const handleSendMessage = (text: string) => {
-    // Get current time
+  const formatTimestamp = (): string => {
     const now = new Date();
     const hours = now.getHours();
     const minutes = now.getMinutes();
     const ampm = hours >= 12 ? 'PM' : 'AM';
     const formattedHours = hours % 12 || 12;
     const formattedMinutes = minutes < 10 ? `0${minutes}` : minutes;
-    const timestamp = `${formattedHours}:${formattedMinutes} ${ampm}`;
+    return `${formattedHours}:${formattedMinutes} ${ampm}`;
+  };
+
+  const handleSendMessage = async (text: string) => {
+    // Current timestamp
+    const timestamp = formatTimestamp();
 
     // Add user message
     const newMessage: Message = {
@@ -55,27 +63,49 @@ const ChatContainer = () => {
     };
     
     setMessages(prevMessages => [...prevMessages, newMessage]);
+    setIsLoading(true);
 
-    // Simulate response after a short delay
-    setTimeout(() => {
-      const responses = [
-        "That's interesting!",
-        "Tell me more about that.",
-        "I understand what you mean.",
-        "Great to hear from you!",
-        "Thanks for your message.",
-        "I'm here to help if you need anything.",
-      ];
+    try {
+      // Send message to n8n webhook
+      const response = await fetch(N8N_WEBHOOK_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          message: text,
+          timestamp: new Date().toISOString(),
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Error: ${response.status}`);
+      }
+
+      const data = await response.json();
       
-      const responseMessage: Message = {
-        id: messages.length + 2,
-        text: responses[Math.floor(Math.random() * responses.length)],
-        isSender: false,
-        timestamp: `${formattedHours}:${formattedMinutes + 1} ${ampm}`
-      };
+      // Add the bot's response with a slight delay
+      setTimeout(() => {
+        const responseMessage: Message = {
+          id: messages.length + 2,
+          text: data.response || "Sorry, I couldn't process your request.",
+          isSender: false,
+          timestamp: formatTimestamp()
+        };
+        
+        setMessages(prevMessages => [...prevMessages, responseMessage]);
+        setIsLoading(false);
+      }, 500);
+    } catch (error) {
+      console.error('Error sending message to n8n:', error);
+      toast({
+        title: "Error",
+        description: "Failed to send message. Please try again.",
+        variant: "destructive"
+      });
       
-      setMessages(prevMessages => [...prevMessages, responseMessage]);
-    }, 1000);
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -93,9 +123,20 @@ const ChatContainer = () => {
             timestamp={message.timestamp}
           />
         ))}
+        {isLoading && (
+          <div className="flex w-full justify-start mb-2">
+            <div className="bg-receiver-bubble text-receiver-text px-4 py-2 rounded-2xl rounded-tl-none shadow-sm flex items-center gap-2">
+              <div className="typing-indicator">
+                <span></span>
+                <span></span>
+                <span></span>
+              </div>
+            </div>
+          </div>
+        )}
         <div ref={messagesEndRef} />
       </div>
-      <ChatInput onSendMessage={handleSendMessage} />
+      <ChatInput onSendMessage={handleSendMessage} isLoading={isLoading} />
     </div>
   );
 };
