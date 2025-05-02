@@ -4,7 +4,7 @@
 :cache-control no-cache
 :connection keep-alive
 
-retry: 10000
+retry: 2000
 event: message
 data: {"message":"Esta é uma resposta simulada do n8n"}
 
