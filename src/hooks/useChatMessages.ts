@@ -1,4 +1,15 @@
 
+// Define formatTimestamp function before it's used
+const formatTimestamp = (): string => {
+  const now = new Date();
+  const hours = now.getHours();
+  const minutes = now.getMinutes();
+  const ampm = hours >= 12 ? 'PM' : 'AM';
+  const formattedHours = hours % 12 || 12;
+  const formattedMinutes = minutes < 10 ? `0${minutes}` : minutes;
+  return `${formattedHours}:${formattedMinutes} ${ampm}`;
+};
+
 import { useState, useEffect, useRef } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { toast } from 'sonner';
@@ -9,17 +20,6 @@ export type Message = {
   text: string;
   isSender: boolean;
   timestamp: string;
-};
-
-// Define formatTimestamp function before it's used
-const formatTimestamp = (): string => {
-  const now = new Date();
-  const hours = now.getHours();
-  const minutes = now.getMinutes();
-  const ampm = hours >= 12 ? 'PM' : 'AM';
-  const formattedHours = hours % 12 || 12;
-  const formattedMinutes = minutes < 10 ? `0${minutes}` : minutes;
-  return `${formattedHours}:${formattedMinutes} ${ampm}`;
 };
 
 export const useChatMessages = () => {
@@ -37,10 +37,10 @@ export const useChatMessages = () => {
   const [messageQueue, setMessageQueue] = useState<string[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Gerar um chat_id único no primeiro carregamento
+  // Generate a unique chat_id on first load
   useEffect(() => {
     const newChatId = uuidv4();
-    console.log("Novo chat_id gerado:", newChatId);
+    console.log("New chat_id generated:", newChatId);
     setChatId(newChatId);
   }, []);
 
@@ -71,7 +71,7 @@ export const useChatMessages = () => {
       console.log("Sending message to n8n:", text);
       console.log("Using chat_id:", chatId);
       
-      // Salvar a mensagem do usuário no Supabase primeiro
+      // Save user message in Supabase first
       const { error: insertError } = await supabase.from('chat').insert({
         chat_id: chatId,
         user_message: text,
@@ -80,14 +80,14 @@ export const useChatMessages = () => {
       
       if (insertError) {
         console.error("Error saving message to Supabase:", insertError);
-        toast.error("Erro ao salvar mensagem");
+        toast.error("Error saving message");
         setIsLoading(false);
         return;
       }
       
-      console.log("Mensagem salva no Supabase com sucesso");
+      console.log("Message saved to Supabase successfully");
       
-      // Enviando para n8n com o chat_id, texto e timestamp
+      // Send to n8n with chat_id, text and timestamp
       const timestamp = new Date().toISOString();
       const N8N_WEBHOOK_URL = 'https://n8n.crisdulabs.com.br/webhook/conversar-com-bot';
       
@@ -100,45 +100,40 @@ export const useChatMessages = () => {
         body: JSON.stringify({
           message: text,
           timestamp: timestamp,
-          clientId: chatId, // Mantendo para compatibilidade
-          chat_id: chatId // Enviando chat_id explicitamente
+          clientId: chatId, 
+          chat_id: chatId
         }),
       });
 
       console.log("Received response from n8n webhook");
       
-      // Since we're using no-cors, we'll wait for the response via Supabase realtime updates
-      // The loading state will be cleared when a new AI message is detected for this chat_id
-      
-      // Add a fallback in case no response is received
+      // Fallback timer if no response is received
       const fallbackTimer = setTimeout(() => {
         if (isLoading) {
           setIsLoading(false);
-          toast.error("Sem resposta recebida. Por favor, tente novamente.");
+          toast.error("No response received. Please try again.");
           
-          // Add a simulated response if we don't get one from the SSE
           const fallbackMessage: Message = {
             id: Date.now(),
-            text: "Desculpe, não recebi uma resposta do servidor. Por favor, tente novamente.",
+            text: "Sorry, I didn't receive a response from the server. Please try again.",
             isSender: false,
             timestamp: formatTimestamp()
           };
           
           setMessages(prevMessages => [...prevMessages, fallbackMessage]);
         }
-      }, 10000); // 10 second timeout
+      }, 15000); // 15 second timeout
       
       return () => clearTimeout(fallbackTimer);
       
     } catch (error) {
       console.error('Error sending message to n8n:', error);
-      toast.error("Falha ao enviar mensagem. Por favor, tente novamente.");
+      toast.error("Failed to send message. Please try again.");
       
-      // Add a fallback response even if there's an error
       setTimeout(() => {
         const errorResponseMessage: Message = {
           id: Date.now(),
-          text: "Estou com problemas para me conectar no momento. Por favor, tente novamente mais tarde.",
+          text: "I'm having trouble connecting right now. Please try again later.",
           isSender: false,
           timestamp: formatTimestamp()
         };
@@ -153,9 +148,9 @@ export const useChatMessages = () => {
     // Current timestamp
     const timestamp = formatTimestamp();
 
-    // Add user message
+    // Add user message to UI
     const newMessage: Message = {
-      id: messages.length + 1,
+      id: Date.now(),
       text,
       isSender: true,
       timestamp
@@ -163,13 +158,15 @@ export const useChatMessages = () => {
     
     setMessages(prevMessages => [...prevMessages, newMessage]);
     
-    // Add message to queue
+    // Add message to processing queue
     setMessageQueue(prevQueue => [...prevQueue, text]);
   };
 
   return {
     messages,
+    setMessages,
     isLoading,
+    setIsLoading,
     chatId,
     messagesEndRef,
     handleSendMessage,

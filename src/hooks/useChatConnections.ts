@@ -18,11 +18,11 @@ export const useChatConnections = ({
   formatTimestamp
 }: UseChatConnectionsProps) => {
 
-  // Monitorar novas respostas de AI para este chat_id
+  // Monitor new AI responses for this chat_id
   useEffect(() => {
     if (!chatId) return;
 
-    console.log("Configurando monitoramento para chat_id:", chatId);
+    console.log("Setting up monitoring for chat_id:", chatId);
     
     const channel = supabase
       .channel('chat-updates')
@@ -32,12 +32,12 @@ export const useChatConnections = ({
         table: 'chat',
         filter: `chat_id=eq.${chatId}`,
       }, (payload) => {
-        console.log("Nova mensagem detectada:", payload);
+        console.log("New message detected:", payload);
         
-        // Verificar se a mensagem tem uma resposta de AI
+        // Check if message has AI response
         if (payload.new && payload.new.ai_message) {
           const aiMessage = payload.new.ai_message;
-          console.log("Nova resposta de AI recebida:", aiMessage);
+          console.log("New AI response received:", aiMessage);
           
           const responseMessage: Message = {
             id: Date.now(),
@@ -46,15 +46,16 @@ export const useChatConnections = ({
             timestamp: formatTimestamp()
           };
           
-          // Use a function form of setMessages to guarantee we're updating based on the latest state
+          // Use function form to ensure we update based on latest state
           setMessages(prevMessages => [...prevMessages, responseMessage]);
           setIsLoading(false);
-          toast.success("Resposta recebida!");
+          toast.success("Response received!");
         }
       })
       .subscribe();
     
     return () => {
+      console.log("Removing Supabase channel");
       supabase.removeChannel(channel);
     };
   }, [chatId, setMessages, setIsLoading, formatTimestamp]);
@@ -65,6 +66,7 @@ export const useChatConnections = ({
     let eventSource: EventSource | null = null;
     
     try {
+      console.log("Setting up SSE connection with clientId:", uniqueClientId);
       eventSource = new EventSource(`/api/chat-response?clientId=${uniqueClientId}`);
       
       eventSource.onmessage = (event) => {
@@ -79,14 +81,14 @@ export const useChatConnections = ({
               timestamp: formatTimestamp()
             };
             
-            // Use a function form of setMessages to guarantee we're updating based on the latest state
+            // Use function form to ensure we update based on latest state
             setMessages(prevMessages => [...prevMessages, responseMessage]);
             setIsLoading(false);
             toast.success("Response received!");
           }
         } catch (error) {
           console.error('Error processing SSE response:', error);
-          toast.error("Error processing response from n8n");
+          toast.error("Error processing response from server");
           setIsLoading(false);
         }
       };
@@ -94,25 +96,16 @@ export const useChatConnections = ({
       eventSource.onerror = (error) => {
         console.error('SSE connection error:', error);
         
-        // Don't automatically close the connection, just reconnect
+        // Only attempt to reconnect if closed
         if (eventSource?.readyState === EventSource.CLOSED) {
+          console.log("Attempting to reconnect SSE...");
           setTimeout(() => {
-            // Attempt to reconnect
             if (eventSource) {
               eventSource.close();
             }
-            // Create a new EventSource instance
             eventSource = new EventSource(`/api/chat-response?clientId=${uniqueClientId}`);
           }, 3000); // Try reconnecting after 3 seconds
         }
-        
-        // Only set loading to false if it's been more than 10 seconds
-        setTimeout(() => {
-          if (setIsLoading) {
-            setIsLoading(false);
-            toast.error("Lost connection to server");
-          }
-        }, 10000);
       };
     } catch (error) {
       console.error('Error setting up EventSource:', error);
@@ -122,6 +115,7 @@ export const useChatConnections = ({
     
     return () => {
       if (eventSource) {
+        console.log("Closing SSE connection");
         eventSource.close();
       }
     };

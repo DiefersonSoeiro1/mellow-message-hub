@@ -8,26 +8,20 @@ import { useChatConnections } from '@/hooks/useChatConnections';
 const ChatContainer = () => {
   const {
     messages,
+    setMessages,
     isLoading,
+    setIsLoading,
     chatId,
     messagesEndRef,
     handleSendMessage,
     formatTimestamp
   } = useChatMessages();
   
-  const [isLoadingState, setIsLoadingState] = useState(isLoading);
-  
   // Setup connections
   useChatConnections({
     chatId,
-    setMessages: (messagesUpdater) => {
-      if (typeof messagesUpdater === 'function') {
-        const newMessages = messagesUpdater(messages);
-        return newMessages;
-      }
-      return messagesUpdater;
-    },
-    setIsLoading: setIsLoadingState,
+    setMessages,
+    setIsLoading,
     formatTimestamp
   });
 
