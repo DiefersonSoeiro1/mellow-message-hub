@@ -1,8 +1,10 @@
 
 import React, { useState, useEffect, useRef } from 'react';
+import { v4 as uuidv4 } from 'uuid';
 import ChatMessage from './ChatMessage';
 import ChatInput from './ChatInput';
 import { toast } from 'sonner';
+import { supabase } from "@/integrations/supabase/client";
 
 type Message = {
   id: number;
@@ -29,9 +31,17 @@ const ChatContainer = () => {
     }
   ]);
   
+  const [chatId, setChatId] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
   const [messageQueue, setMessageQueue] = useState<string[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Gerar um chat_id único no primeiro carregamento
+  useEffect(() => {
+    const newChatId = uuidv4();
+    console.log("Novo chat_id gerado:", newChatId);
+    setChatId(newChatId);
+  }, []);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -40,6 +50,46 @@ const ChatContainer = () => {
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  // Monitorar novas respostas de AI para este chat_id
+  useEffect(() => {
+    if (!chatId) return;
+
+    console.log("Configurando monitoramento para chat_id:", chatId);
+    
+    const channel = supabase
+      .channel('chat-updates')
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'chat',
+        filter: `chat_id=eq.${chatId}`,
+      }, (payload) => {
+        console.log("Nova mensagem detectada:", payload);
+        
+        // Verificar se a mensagem tem uma resposta de AI
+        if (payload.new && payload.new.ai_message) {
+          const aiMessage = payload.new.ai_message;
+          console.log("Nova resposta de AI recebida:", aiMessage);
+          
+          const responseMessage: Message = {
+            id: Date.now(),
+            text: aiMessage,
+            isSender: false,
+            timestamp: formatTimestamp()
+          };
+          
+          setMessages(prevMessages => [...prevMessages, responseMessage]);
+          setIsLoading(false);
+          toast.success("Resposta recebida!");
+        }
+      })
+      .subscribe();
+    
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [chatId]);
 
   // Setup SSE listener for n8n responses
   useEffect(() => {
@@ -135,7 +185,25 @@ const ChatContainer = () => {
 
     try {
       console.log("Sending message to n8n:", text);
+      console.log("Using chat_id:", chatId);
       
+      // Salvar a mensagem do usuário no Supabase primeiro
+      const { error: insertError } = await supabase.from('chat').insert({
+        chat_id: chatId,
+        user_message: text,
+        created_at: new Date().toISOString()
+      });
+      
+      if (insertError) {
+        console.error("Error saving message to Supabase:", insertError);
+        toast.error("Erro ao salvar mensagem");
+        setIsLoading(false);
+        return;
+      }
+      
+      console.log("Mensagem salva no Supabase com sucesso");
+      
+      // Enviando para n8n com o chat_id
       const response = await fetch(N8N_WEBHOOK_URL, {
         method: 'POST',
         headers: {
@@ -145,25 +213,26 @@ const ChatContainer = () => {
         body: JSON.stringify({
           message: text,
           timestamp: new Date().toISOString(),
-          clientId: Date.now().toString(), // Used to identify the client
+          clientId: chatId, // Usando chat_id como clientId
+          chat_id: chatId // Enviando chat_id explicitamente também
         }),
       });
 
       console.log("Received response from n8n webhook");
       
-      // Since we're using no-cors, we'll wait for the response via SSE
-      // The loading state will be cleared when the SSE endpoint receives a response
+      // Since we're using no-cors, we'll wait for the response via Supabase realtime updates
+      // The loading state will be cleared when a new AI message is detected for this chat_id
       
       // Add a fallback in case no response is received
       const fallbackTimer = setTimeout(() => {
         if (isLoading) {
           setIsLoading(false);
-          toast.error("No response received. Please try again.");
+          toast.error("Sem resposta recebida. Por favor, tente novamente.");
           
           // Add a simulated response if we don't get one from the SSE
           const fallbackMessage: Message = {
             id: Date.now(),
-            text: "I'm sorry, I didn't receive a response from the server. Please try again.",
+            text: "Desculpe, não recebi uma resposta do servidor. Por favor, tente novamente.",
             isSender: false,
             timestamp: formatTimestamp()
           };
@@ -176,13 +245,13 @@ const ChatContainer = () => {
       
     } catch (error) {
       console.error('Error sending message to n8n:', error);
-      toast.error("Failed to send message. Please try again.");
+      toast.error("Falha ao enviar mensagem. Por favor, tente novamente.");
       
       // Add a fallback response even if there's an error
       setTimeout(() => {
         const errorResponseMessage: Message = {
           id: Date.now(),
-          text: "I'm having trouble connecting right now. Please try again later.",
+          text: "Estou com problemas para me conectar no momento. Por favor, tente novamente mais tarde.",
           isSender: false,
           timestamp: formatTimestamp()
         };
