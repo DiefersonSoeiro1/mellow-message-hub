@@ -203,7 +203,9 @@ const ChatContainer = () => {
       
       console.log("Mensagem salva no Supabase com sucesso");
       
-      // Enviando para n8n com o chat_id
+      // Enviando para n8n com o chat_id, texto e timestamp
+      const timestamp = new Date().toISOString();
+      
       const response = await fetch(N8N_WEBHOOK_URL, {
         method: 'POST',
         headers: {
@@ -212,9 +214,9 @@ const ChatContainer = () => {
         mode: 'no-cors', // Add no-cors mode to handle CORS issues
         body: JSON.stringify({
           message: text,
-          timestamp: new Date().toISOString(),
-          clientId: chatId, // Usando chat_id como clientId
-          chat_id: chatId // Enviando chat_id explicitamente também
+          timestamp: timestamp,
+          clientId: chatId, // Mantendo para compatibilidade
+          chat_id: chatId // Enviando chat_id explicitamente
         }),
       });
 
