@@ -46,6 +46,7 @@ export const useChatConnections = ({
             timestamp: formatTimestamp()
           };
           
+          // Use a function form of setMessages to guarantee we're updating based on the latest state
           setMessages(prevMessages => [...prevMessages, responseMessage]);
           setIsLoading(false);
           toast.success("Resposta recebida!");
@@ -78,6 +79,7 @@ export const useChatConnections = ({
               timestamp: formatTimestamp()
             };
             
+            // Use a function form of setMessages to guarantee we're updating based on the latest state
             setMessages(prevMessages => [...prevMessages, responseMessage]);
             setIsLoading(false);
             toast.success("Response received!");
