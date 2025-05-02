@@ -98,11 +98,8 @@ const ChatContainer = () => {
       }, 500);
     } catch (error) {
       console.error('Error sending message to n8n:', error);
-      toast({
-        title: "Error",
-        description: "Failed to send message. Please try again.",
-        variant: "destructive"
-      });
+      // Updated toast usage to match the sonner API
+      toast.error("Failed to send message. Please try again.");
       
       setIsLoading(false);
     }
