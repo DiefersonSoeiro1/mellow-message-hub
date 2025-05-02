@@ -53,7 +53,7 @@ const ChatContainer = () => {
         )}
         <div ref={messagesEndRef} />
       </div>
-      <ChatInput onSendMessage={handleSendMessage} isLoading={isLoading} />
+      <ChatInput onSendMessage={handleSendMessage} isLoading={false} />
     </div>
   );
 };
