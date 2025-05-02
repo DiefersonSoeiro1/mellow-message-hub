@@ -11,6 +11,17 @@ export type Message = {
   timestamp: string;
 };
 
+// Define formatTimestamp function before it's used
+const formatTimestamp = (): string => {
+  const now = new Date();
+  const hours = now.getHours();
+  const minutes = now.getMinutes();
+  const ampm = hours >= 12 ? 'PM' : 'AM';
+  const formattedHours = hours % 12 || 12;
+  const formattedMinutes = minutes < 10 ? `0${minutes}` : minutes;
+  return `${formattedHours}:${formattedMinutes} ${ampm}`;
+};
+
 export const useChatMessages = () => {
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -52,16 +63,6 @@ export const useChatMessages = () => {
       processMessage(nextMessage);
     }
   }, [messageQueue, isLoading]);
-
-  const formatTimestamp = (): string => {
-    const now = new Date();
-    const hours = now.getHours();
-    const minutes = now.getMinutes();
-    const ampm = hours >= 12 ? 'PM' : 'AM';
-    const formattedHours = hours % 12 || 12;
-    const formattedMinutes = minutes < 10 ? `0${minutes}` : minutes;
-    return `${formattedHours}:${formattedMinutes} ${ampm}`;
-  };
 
   const processMessage = async (text: string) => {
     setIsLoading(true);
