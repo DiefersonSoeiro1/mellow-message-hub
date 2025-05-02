@@ -1,6 +1,5 @@
 
 import { useEffect } from 'react';
-import { toast } from 'sonner';
 import { supabase } from "@/integrations/supabase/client";
 import { Message } from './useChatMessages';
 
@@ -49,7 +48,6 @@ export const useChatConnections = ({
           // Use function form to ensure we update based on latest state
           setMessages(prevMessages => [...prevMessages, responseMessage]);
           setIsLoading(false);
-          toast.success("Response received!");
         }
       })
       .subscribe();
@@ -84,11 +82,9 @@ export const useChatConnections = ({
             // Use function form to ensure we update based on latest state
             setMessages(prevMessages => [...prevMessages, responseMessage]);
             setIsLoading(false);
-            toast.success("Response received!");
           }
         } catch (error) {
           console.error('Error processing SSE response:', error);
-          toast.error("Error processing response from server");
           setIsLoading(false);
         }
       };
@@ -109,7 +105,6 @@ export const useChatConnections = ({
       };
     } catch (error) {
       console.error('Error setting up EventSource:', error);
-      toast.error("Failed to connect to the server");
       setIsLoading(false);
     }
     

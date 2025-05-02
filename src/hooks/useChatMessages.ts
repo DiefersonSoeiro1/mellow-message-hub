@@ -12,7 +12,6 @@ const formatTimestamp = (): string => {
 
 import { useState, useEffect, useRef } from 'react';
 import { v4 as uuidv4 } from 'uuid';
-import { toast } from 'sonner';
 import { supabase } from "@/integrations/supabase/client";
 
 export type Message = {
@@ -80,7 +79,6 @@ export const useChatMessages = () => {
       
       if (insertError) {
         console.error("Error saving message to Supabase:", insertError);
-        toast.error("Error saving message");
         setIsLoading(false);
         return;
       }
@@ -111,7 +109,6 @@ export const useChatMessages = () => {
       const fallbackTimer = setTimeout(() => {
         if (isLoading) {
           setIsLoading(false);
-          toast.error("No response received. Please try again.");
           
           const fallbackMessage: Message = {
             id: Date.now(),
@@ -128,7 +125,6 @@ export const useChatMessages = () => {
       
     } catch (error) {
       console.error('Error sending message to n8n:', error);
-      toast.error("Failed to send message. Please try again.");
       
       setTimeout(() => {
         const errorResponseMessage: Message = {
