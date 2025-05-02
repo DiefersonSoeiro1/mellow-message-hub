@@ -19,15 +19,9 @@ const ChatContainer = () => {
   const [messages, setMessages] = useState<Message[]>([
     {
       id: 1,
-      text: "Hello there! 👋",
+      text: "Olá, como posso te ajudar hoje?",
       isSender: false,
       timestamp: "10:01 AM"
-    },
-    {
-      id: 2,
-      text: "Welcome to our simple chat app! How can I help you today?",
-      isSender: false,
-      timestamp: "10:02 AM"
     }
   ]);
   
