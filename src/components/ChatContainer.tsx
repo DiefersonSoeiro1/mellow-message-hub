@@ -30,6 +30,7 @@ const ChatContainer = () => {
   ]);
   
   const [isLoading, setIsLoading] = useState(false);
+  const [messageQueue, setMessageQueue] = useState<string[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
@@ -39,6 +40,53 @@ const ChatContainer = () => {
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  // Setup SSE listener for n8n responses
+  useEffect(() => {
+    const uniqueClientId = Date.now().toString();
+    const eventSource = new EventSource(`/api/chat-response?clientId=${uniqueClientId}`);
+    
+    eventSource.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        if (data && data.message) {
+          const responseMessage: Message = {
+            id: Date.now(),
+            text: data.message,
+            isSender: false,
+            timestamp: formatTimestamp()
+          };
+          
+          setMessages(prevMessages => [...prevMessages, responseMessage]);
+          setIsLoading(false);
+          toast.success("Response received!");
+        }
+      } catch (error) {
+        console.error('Error processing SSE response:', error);
+      }
+    };
+    
+    eventSource.onerror = (error) => {
+      console.error('SSE connection error:', error);
+      setIsLoading(false);
+    };
+    
+    return () => {
+      eventSource.close();
+    };
+  }, []);
+
+  // Process message queue
+  useEffect(() => {
+    if (messageQueue.length > 0 && !isLoading) {
+      const nextMessage = messageQueue[0];
+      const newQueue = messageQueue.slice(1);
+      setMessageQueue(newQueue);
+      
+      // Process the message
+      processMessage(nextMessage);
+    }
+  }, [messageQueue, isLoading]);
 
   const formatTimestamp = (): string => {
     const now = new Date();
@@ -50,25 +98,12 @@ const ChatContainer = () => {
     return `${formattedHours}:${formattedMinutes} ${ampm}`;
   };
 
-  const handleSendMessage = async (text: string) => {
-    // Current timestamp
-    const timestamp = formatTimestamp();
-
-    // Add user message
-    const newMessage: Message = {
-      id: messages.length + 1,
-      text,
-      isSender: true,
-      timestamp
-    };
-    
-    setMessages(prevMessages => [...prevMessages, newMessage]);
+  const processMessage = async (text: string) => {
     setIsLoading(true);
 
     try {
       console.log("Sending message to n8n:", text);
       
-      // Send message to n8n webhook with mode: 'no-cors' to avoid CORS issues
       const response = await fetch(N8N_WEBHOOK_URL, {
         method: 'POST',
         headers: {
@@ -78,26 +113,24 @@ const ChatContainer = () => {
         body: JSON.stringify({
           message: text,
           timestamp: new Date().toISOString(),
+          clientId: Date.now().toString(), // Used to identify the client
         }),
       });
 
       console.log("Received response from n8n webhook");
       
-      // Since we're using no-cors, we won't be able to access the response status or body
-      // We'll need to hardcode a response for now
-      setTimeout(() => {
-        const botResponse = "Thank you for your message! This is a simulated response since we're using no-cors mode.";
-        const responseMessage: Message = {
-          id: messages.length + 2,
-          text: botResponse,
-          isSender: false,
-          timestamp: formatTimestamp()
-        };
-        
-        setMessages(prevMessages => [...prevMessages, responseMessage]);
-        setIsLoading(false);
-        toast.success("Message sent successfully!");
-      }, 1000);
+      // Since we're using no-cors, we'll wait for the response via SSE
+      // The loading state will be cleared when the SSE endpoint receives a response
+      
+      // Add a fallback in case no response is received
+      const fallbackTimer = setTimeout(() => {
+        if (isLoading) {
+          setIsLoading(false);
+          toast.error("No response received. Please try again.");
+        }
+      }, 10000); // 10 second timeout
+      
+      return () => clearTimeout(fallbackTimer);
       
     } catch (error) {
       console.error('Error sending message to n8n:', error);
@@ -116,6 +149,24 @@ const ChatContainer = () => {
         setIsLoading(false);
       }, 1000);
     }
+  };
+
+  const handleSendMessage = (text: string) => {
+    // Current timestamp
+    const timestamp = formatTimestamp();
+
+    // Add user message
+    const newMessage: Message = {
+      id: messages.length + 1,
+      text,
+      isSender: true,
+      timestamp
+    };
+    
+    setMessages(prevMessages => [...prevMessages, newMessage]);
+    
+    // Add message to queue
+    setMessageQueue(prevQueue => [...prevQueue, text]);
   };
 
   return (

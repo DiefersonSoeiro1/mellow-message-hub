@@ -1,0 +1,10 @@
+
+:status 200
+:content-type text/event-stream
+:cache-control no-cache
+:connection keep-alive
+
+retry: 10000
+event: message
+data: {"message":"Esta é uma resposta simulada do n8n"}
+
