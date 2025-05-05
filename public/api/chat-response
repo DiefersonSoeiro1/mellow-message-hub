@@ -6,5 +6,6 @@
 
 retry: 2000
 event: message
-data: {"message":"Esta é uma resposta simulada do n8n"}
+data: {"message":"Esta é uma resposta simulada do n8n. Sua mensagem foi recebida com sucesso!"}
+
 

@@ -1,3 +1,4 @@
+
 // Define formatTimestamp function before it's used
 const formatTimestamp = (): string => {
   const now = new Date();
@@ -69,66 +70,92 @@ export const useChatMessages = () => {
       console.log("Sending message to n8n:", text);
       console.log("Using chat_id:", chatId);
       
-      // Save user message in Supabase first
-      const { error: insertError } = await supabase.from('chat').insert({
-        chat_id: chatId,
-        user_message: text,
-        created_at: new Date().toISOString()
-      });
-      
-      if (insertError) {
-        console.error("Error saving message to Supabase:", insertError);
-        setIsLoading(false);
-        return;
+      // Try to save user message in Supabase, but don't block if it fails
+      try {
+        const { error: insertError } = await supabase.from('chat').insert({
+          chat_id: chatId,
+          user_message: text,
+          created_at: new Date().toISOString()
+        });
+        
+        if (insertError) {
+          console.error("Error saving message to Supabase:", insertError);
+          // Continue execution even if Supabase insert fails
+        } else {
+          console.log("Message saved to Supabase successfully");
+        }
+      } catch (supabaseError) {
+        console.error("Failed to connect to Supabase:", supabaseError);
+        // Continue execution even if Supabase connection fails
       }
       
-      console.log("Message saved to Supabase successfully");
-      
-      // Send to n8n with chat_id, text and timestamp
+      // Always send to n8n regardless of Supabase status
       const timestamp = new Date().toISOString();
       const N8N_WEBHOOK_URL = 'https://n8n.crisdulabs.com.br/webhook/conversar-com-bot';
       
-      const response = await fetch(N8N_WEBHOOK_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        mode: 'no-cors',
-        body: JSON.stringify({
-          message: text,
-          timestamp: timestamp,
-          clientId: chatId, 
-          chat_id: chatId
-        }),
-      });
+      try {
+        await fetch(N8N_WEBHOOK_URL, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          mode: 'no-cors',
+          body: JSON.stringify({
+            message: text,
+            timestamp: timestamp,
+            clientId: chatId, 
+            chat_id: chatId
+          }),
+        });
 
-      console.log("Received response from n8n webhook");
+        console.log("Request sent to n8n webhook");
+        
+        // Since we're using no-cors, we won't get a meaningful status code
+        // The response will be handled via SSE or Supabase subscription
+        // Don't set isLoading to false here, it will be set when a response is received
+        
+      } catch (n8nError) {
+        console.error('Error sending message to n8n:', n8nError);
+        setIsLoading(false);
+        
+        // Add a fallback response if n8n request fails
+        setTimeout(() => {
+          const fallbackMessage: Message = {
+            id: Date.now(),
+            text: "Desculpe, estou tendo problemas para processar sua mensagem. Por favor, tente novamente mais tarde.",
+            isSender: false,
+            timestamp: formatTimestamp()
+          };
+          
+          setMessages(prevMessages => [...prevMessages, fallbackMessage]);
+        }, 1000);
+      }
       
-      // Fallback timer if no response is received
+      // Set a fallback timer for 15 seconds if no response is received
       const fallbackTimer = setTimeout(() => {
         if (isLoading) {
           setIsLoading(false);
           
           const fallbackMessage: Message = {
             id: Date.now(),
-            text: "Sorry, I didn't receive a response from the server. Please try again.",
+            text: "Não recebi resposta do servidor a tempo. Por favor, tente novamente.",
             isSender: false,
             timestamp: formatTimestamp()
           };
           
           setMessages(prevMessages => [...prevMessages, fallbackMessage]);
         }
-      }, 15000); // 15 second timeout
+      }, 15000);
       
       return () => clearTimeout(fallbackTimer);
       
     } catch (error) {
-      console.error('Error sending message to n8n:', error);
+      console.error('Error in processMessage:', error);
       
       setTimeout(() => {
         const errorResponseMessage: Message = {
           id: Date.now(),
-          text: "I'm having trouble connecting right now. Please try again later.",
+          text: "Estou com problemas para me conectar no momento. Por favor, tente novamente mais tarde.",
           isSender: false,
           timestamp: formatTimestamp()
         };
