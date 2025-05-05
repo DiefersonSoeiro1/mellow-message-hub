@@ -51,11 +51,13 @@ export const useChatConnections = ({
             setIsLoading(false);
           }
         })
-        .subscribe(error => {
-          if (error) {
-            console.error("Error subscribing to Supabase channel:", error);
-          } else {
+        .subscribe((status) => {
+          if (status === 'SUBSCRIBED') {
             console.log("Successfully subscribed to Supabase channel");
+          } else if (status === 'CHANNEL_ERROR') {
+            console.error("Error subscribing to Supabase channel:", status);
+          } else {
+            console.log("Supabase channel status:", status);
           }
         });
     
