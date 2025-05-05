@@ -1,4 +1,3 @@
-
 // Define formatTimestamp function before it's used
 const formatTimestamp = (): string => {
   const now = new Date();
@@ -87,7 +86,7 @@ export const useChatMessages = () => {
       
       // Send to n8n with chat_id, text and timestamp
       const timestamp = new Date().toISOString();
-      const N8N_WEBHOOK_URL = 'teste123';
+      const N8N_WEBHOOK_URL = 'https://n8n.crisdulabs.com.br/webhook/conversar-com-bot';
       
       const response = await fetch(N8N_WEBHOOK_URL, {
         method: 'POST',
