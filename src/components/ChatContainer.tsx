@@ -1,9 +1,10 @@
 
-import React, { useState } from 'react';
+import React from 'react';
 import ChatMessage from './ChatMessage';
 import ChatInput from './ChatInput';
 import { useChatMessages } from '@/hooks/useChatMessages';
 import { useChatConnections } from '@/hooks/useChatConnections';
+import ChatTypingIndicator from './ChatTypingIndicator';
 
 const ChatContainer = () => {
   const {
@@ -43,17 +44,13 @@ const ChatContainer = () => {
         {isLoading && (
           <div className="flex w-full justify-start mb-2">
             <div className="bg-receiver-bubble text-receiver-text px-4 py-2 rounded-2xl rounded-tl-none shadow-sm flex items-center gap-2">
-              <div className="typing-indicator">
-                <span></span>
-                <span></span>
-                <span></span>
-              </div>
+              <ChatTypingIndicator />
             </div>
           </div>
         )}
         <div ref={messagesEndRef} />
       </div>
-      <ChatInput onSendMessage={handleSendMessage} isLoading={false} />
+      <ChatInput onSendMessage={handleSendMessage} isLoading={isLoading} />
     </div>
   );
 };

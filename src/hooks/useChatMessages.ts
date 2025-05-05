@@ -1,4 +1,8 @@
 
+import { useState, useEffect, useRef } from 'react';
+import { v4 as uuidv4 } from 'uuid';
+import { supabase } from "@/integrations/supabase/client";
+
 // Define formatTimestamp function before it's used
 const formatTimestamp = (): string => {
   const now = new Date();
@@ -9,10 +13,6 @@ const formatTimestamp = (): string => {
   const formattedMinutes = minutes < 10 ? `0${minutes}` : minutes;
   return `${formattedHours}:${formattedMinutes} ${ampm}`;
 };
-
-import { useState, useEffect, useRef } from 'react';
-import { v4 as uuidv4 } from 'uuid';
-import { supabase } from "@/integrations/supabase/client";
 
 export type Message = {
   id: number;
@@ -33,7 +33,6 @@ export const useChatMessages = () => {
   
   const [chatId, setChatId] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
-  const [messageQueue, setMessageQueue] = useState<string[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Generate a unique chat_id on first load
@@ -51,137 +50,70 @@ export const useChatMessages = () => {
     scrollToBottom();
   }, [messages]);
 
-  // Process message queue
-  useEffect(() => {
-    if (messageQueue.length > 0 && !isLoading) {
-      const nextMessage = messageQueue[0];
-      const newQueue = messageQueue.slice(1);
-      setMessageQueue(newQueue);
-      
-      // Process the message
-      processMessage(nextMessage);
-    }
-  }, [messageQueue, isLoading]);
-
   const processMessage = async (text: string) => {
     setIsLoading(true);
-
+    
+    console.log("Sending message to n8n:", text);
+    console.log("Using chat_id:", chatId);
+    
+    // Try to save user message in Supabase
     try {
-      console.log("Sending message to n8n:", text);
-      console.log("Using chat_id:", chatId);
-      
-      // Try to save user message in Supabase, but don't block if it fails
-      try {
-        const { error: insertError } = await supabase.from('chat').insert({
-          chat_id: chatId,
-          user_message: text,
-          created_at: new Date().toISOString()
-        });
-        
-        if (insertError) {
-          console.error("Error saving message to Supabase:", insertError);
-          // Continue execution even if Supabase insert fails
-        } else {
-          console.log("Message saved to Supabase successfully");
-        }
-      } catch (supabaseError) {
-        console.error("Failed to connect to Supabase:", supabaseError);
-        // Continue execution even if Supabase connection fails
-      }
-      
-      // Always send to n8n regardless of Supabase status
-      const timestamp = new Date().toISOString();
+      await supabase.from('chat').insert({
+        chat_id: chatId,
+        user_message: text,
+        created_at: new Date().toISOString()
+      });
+      console.log("Message saved to Supabase successfully");
+    } catch (error) {
+      console.error("Failed to save message to Supabase:", error);
+      // Continue even if Supabase fails
+    }
+    
+    // Send to n8n
+    try {
       const N8N_WEBHOOK_URL = 'https://n8n.crisdulabs.com.br/webhook/conversar-com-bot';
-      
-      try {
-        await fetch(N8N_WEBHOOK_URL, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          mode: 'no-cors',
-          body: JSON.stringify({
-            message: text,
-            timestamp: timestamp,
-            clientId: chatId, 
-            chat_id: chatId
-          }),
-        });
+      await fetch(N8N_WEBHOOK_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        mode: 'no-cors',
+        body: JSON.stringify({
+          message: text,
+          timestamp: new Date().toISOString(),
+          clientId: chatId,
+          chat_id: chatId
+        }),
+      });
 
-        console.log("Request sent to n8n webhook");
-        
-        // Since we're using no-cors, we won't get a meaningful status code
-        // The response will be handled via SSE or Supabase subscription
-        // Don't set isLoading to false here, it will be set when a response is received
-        
-      } catch (n8nError) {
-        console.error('Error sending message to n8n:', n8nError);
-        setIsLoading(false);
-        
-        // Add a fallback response if n8n request fails
-        setTimeout(() => {
-          const fallbackMessage: Message = {
-            id: Date.now(),
-            text: "Desculpe, estou tendo problemas para processar sua mensagem. Por favor, tente novamente mais tarde.",
-            isSender: false,
-            timestamp: formatTimestamp()
-          };
-          
-          setMessages(prevMessages => [...prevMessages, fallbackMessage]);
-        }, 1000);
-      }
-      
-      // Set a fallback timer for 15 seconds if no response is received
-      const fallbackTimer = setTimeout(() => {
-        if (isLoading) {
-          setIsLoading(false);
-          
-          const fallbackMessage: Message = {
-            id: Date.now(),
-            text: "Não recebi resposta do servidor a tempo. Por favor, tente novamente.",
-            isSender: false,
-            timestamp: formatTimestamp()
-          };
-          
-          setMessages(prevMessages => [...prevMessages, fallbackMessage]);
-        }
-      }, 15000);
-      
-      return () => clearTimeout(fallbackTimer);
+      console.log("Request sent to n8n webhook");
+      // Response will be handled via SSE or Supabase subscription
       
     } catch (error) {
-      console.error('Error in processMessage:', error);
-      
-      setTimeout(() => {
-        const errorResponseMessage: Message = {
-          id: Date.now(),
-          text: "Estou com problemas para me conectar no momento. Por favor, tente novamente mais tarde.",
-          isSender: false,
-          timestamp: formatTimestamp()
-        };
-        
-        setMessages(prevMessages => [...prevMessages, errorResponseMessage]);
-        setIsLoading(false);
-      }, 1000);
+      console.error('Error sending message to n8n:', error);
+      setIsLoading(false);
     }
+    
+    // Set a timeout for 30 seconds in case no response is received
+    setTimeout(() => {
+      if (isLoading) {
+        console.log("No response received within timeout period");
+        setIsLoading(false);
+      }
+    }, 30000);
   };
 
   const handleSendMessage = (text: string) => {
-    // Current timestamp
-    const timestamp = formatTimestamp();
-
     // Add user message to UI
     const newMessage: Message = {
       id: Date.now(),
       text,
       isSender: true,
-      timestamp
+      timestamp: formatTimestamp()
     };
     
     setMessages(prevMessages => [...prevMessages, newMessage]);
-    
-    // Add message to processing queue
-    setMessageQueue(prevQueue => [...prevQueue, text]);
+    processMessage(text);
   };
 
   return {
